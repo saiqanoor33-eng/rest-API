@@ -1,0 +1,11 @@
+Test ID	Test case	Test input	Expected result
+TC-01	Empty required field	Blank	Validation message aaye
+TC-02	Valid email	saiqa@example.com	Accept ho
+TC-03	Invalid email	saiqa@	Reject ho
+TC-04	Incorrect format	abc123 in email field	Reject ho
+TC-05	Long input	Bohat lamba text	Limit enforce ho ya clear validation aaye
+TC-06	Special characters	<script>alert(1)</script>	Unsafe input execute na ho
+TC-07	Incorrect password	Wrong password	Submit/login reject ho
+TC-08	Boundary values	Minimum/maximum allowed length	Rules ke mutabiq accept/reject ho
+TC-09	Spaces only	"     "	Required field reject ho
+TC-10	Valid form submission	All valid fields	Form successfully submit ho
