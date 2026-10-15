@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager | REST API Project</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+
+        header {
+            background: #172554;
+            color: white;
+            text-align: center;
+            padding: 28px 15px;
+        }
+
+        header h1 {
+            margin: 0 0 8px;
+        }
+
+        main {
+            max-width: 750px;
+            margin: 30px auto;
+            padding: 0 16px;
+        }
+
+        .panel {
+            background: white;
+            padding: 22px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 3px 12px #0000000d;
+        }
+
+        form {
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            min-width: 0;
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            font-size: 15px;
+        }
+
+        button {
+            padding: 10px 13px;
+            border: 0;
+            border-radius: 7px;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+            margin: 2px;
+        }
+
+        .delete {
+            background: #dc2626;
+        }
+
+        .edit {
+            background: #475569;
+        }
+
+        .task {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 14px 0;
+        }
+
+        .task:last-child {
+            border-bottom: 0;
+        }
+
+        .task-title {
+            overflow-wrap: anywhere;
+        }
+
+        .done {
+            text-decoration: line-through;
+            color: #64748b;
+        }
+
+        .status {
+            color: #475569;
+            font-size: 14px;
+        }
+
+        #message {
+            margin-top: 12px;
+        }
+
+        @media (max-width: 500px) {
+            form {
+                flex-direction: column;
+            }
+
+            .task {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Task Manager</h1>
+        <p>REST API Connected Web Application</p>
+    </header>
+
+    <main>
+        <section class="panel">
+            <h2>Add a New Task</h2>
+            <form id="taskForm">
+                <input id="taskTitle" type="text" placeholder="Enter task title..." maxlength="100" required>
+                <button type="submit">Add Task</button>
+            </form>
+            <p id="message" role="status"></p>
+        </section>
+
+        <section class="panel">
+            <h2>My Tasks</h2>
+            <p class="status" id="count">Loading tasks...</p>
+            <div id="taskList"></div>
+            <button id="refresh">Refresh Tasks</button>
+        </section>
+    </main>
+
+    <script>
+        const API = "/api/tasks";
+        const list = document.getElementById("taskList");
+        const message = document.getElementById("message");
+        const count = document.getElementById("count");
+
+        async function request(url, options = {}) {
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    "Content-Type": "application/json",
+                    ...options.headers
+                }
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || "Request failed");
+            }
+
+            return result;
+        }
+
+        async function loadTasks() {
+            list.replaceChildren();
+            count.textContent = "Loading tasks...";
+
+            try {
+                const result = await request(API);
+                count.textContent = `${result.count} task(s) found`;
+
+                if (result.data.length === 0) {
+                    list.textContent = "No tasks yet. Add your first task!";
+                    return;
+                }
+
+                result.data.forEach(task => {
+                    const row = document.createElement("div");
+                    row.className = "task";
+
+                    const title = document.createElement("span");
+                    title.className = "task-title" +
+                        (task.completed ? " done" : "");
+                    title.textContent = `${task.completed ? "✓ " : ""}${task.title}`;
+
+                    const actions = document.createElement("div");
+
+                    const edit = document.createElement("button");
+                    edit.className = "edit";
+                    edit.textContent = "Edit";
+                    edit.onclick = () => editTask(task);
+
+                    const toggle = document.createElement("button");
+                    toggle.textContent = task.completed ? "Undo" : "Complete";
+                    toggle.onclick = () => updateTask(task, {
+                        completed: !task.completed
+                    });
+
+                    const remove = document.createElement("button");
+                    remove.className = "delete";
+                    remove.textContent = "Delete";
+                    remove.onclick = () => deleteTask(task);
+
+                    actions.append(edit, toggle, remove);
+                    row.append(title, actions);
+                    list.append(row);
+                });
+            } catch (error) {
+                count.textContent = "Unable to load tasks";
+                message.textContent = error.message;
+            }
+        }
+
+        document.getElementById("taskForm").addEventListener(
+            "submit", async event => {
+                event.preventDefault();
+                const input = document.getElementById("taskTitle");
+                const title = input.value.trim();
+
+                if (!title) {
+                    message.textContent = "Please enter a task title.";
+                    return;
+                }
+
+                try {
+                    await request(API, {
+                        method: "POST",
+                        body: JSON.stringify({ title })
+                    });
+                    input.value = "";
+                    message.textContent = "Task added successfully!";
+                    await loadTasks();
+                } catch (error) {
+                    message.textContent = error.message;
+                }
+            }
+        );
+
+        async function updateTask(task, changes) {
+            try {
+                await request(`${API}/${task.id}`, {
+                    method: "PATCH",
+                    body: JSON.stringify(changes)
+                });
+                message.textContent = "Task updated successfully!";
+                await loadTasks();
+            } catch (error) {
+                message.textContent = error.message;
+            }
+        }
+
+        async function editTask(task) {
+            const title = prompt("Enter the new task title:", task.title);
+            if (title === null) return;
+
+            if (!title.trim() || title.trim().length > 100) {
+                message.textContent = "Title must contain 1–100 characters.";
+                return;
+            }
+
+            await updateTask(task, { title: title.trim() });
+        }
+
+        async function deleteTask(task) {
+            if (!confirm(`Delete "${task.title}"?`)) return;
+
+            try {
+                await request(`${API}/${task.id}`, { method: "DELETE" });
+                message.textContent = "Task deleted successfully!";
+                await loadTasks();
+            } catch (error) {
+                message.textContent = error.message;
+            }
+        }
+
+        document.getElementById("refresh").onclick = loadTasks;
+        loadTasks();
+    </script>
+</body>
+
+</html>
